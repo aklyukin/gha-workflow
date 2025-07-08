@@ -33,8 +33,6 @@ jobs:
   ecs_deploy:
     name: ECS Service deploy
     runs-on: ubuntu-latest
-    outputs:
-      tags: ${{ steps.meta.outputs.tags }}
 
     steps:
 
@@ -42,3 +40,4 @@ jobs:
         run: echo "${{ inputs.ECS_SERVICE_CONTAINERS_JSON }}"
 
 
+#"https://stackoverflow.com/questions/59180385/using-an-array-of-values-to-repeat-a-step-in-github-actions-workflow"
