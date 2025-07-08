@@ -1,0 +1,44 @@
+name: Deploy AWS ECS service
+
+on:
+  workflow_call:
+
+    inputs:
+      AWS_REGION:
+        required: true
+        type: string
+      AWS_ROLE_TO_ASSUME:
+        required: false
+        type: string
+      ECS_CLUSTER_NAME:
+        required: true
+        type: string
+      ECS_SERVICE_NAME:
+        required: true
+        type: string
+      ECS_TASK_DEFINITION:
+        required: true
+        type: string
+      ECS_SERVICE_CONTAINERS_JSON:
+        required: true
+        type: string
+
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+
+jobs:
+  ecs_deploy:
+    name: ECS Service deploy
+    runs-on: ubuntu-latest
+    outputs:
+      tags: ${{ steps.meta.outputs.tags }}
+
+    steps:
+
+      - name: Configure AWS credentials
+        run: echo "${{ inputs.ECS_SERVICE_CONTAINERS_JSON }}"
+
+
