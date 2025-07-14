@@ -92,7 +92,7 @@ jobs:
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: ${{ needs.get_task_definition.outputs.task-def-path }}
+          task-definition: tmp/task-definition.json
           container-name: ${{ matrix.container.name }}
           image: ${{ matrix.container.image }}
 
