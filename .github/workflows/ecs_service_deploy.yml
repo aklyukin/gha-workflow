@@ -113,6 +113,9 @@ jobs:
           name: task-definition
           path: tmp/task-definition.json
 
+      - name: show definition
+        run: cat tmp/task-definition.json
+
       - name: Deploy ECS service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
