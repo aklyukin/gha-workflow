@@ -86,10 +86,10 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: task-definition
-          path: tmp/task-definition.json
+          path: tmp/
 
       - name: show definition
-        run: cat tmp/task-definition.json
+        run: ls -la tmp/
 
       - name: Render ECS task definition with new image
         id: task-def
@@ -114,7 +114,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: task-definition
-          path: tmp/task-definition.json
+          path: tmp/
 
       - name: show definition
         run: cat tmp/task-definition.json
