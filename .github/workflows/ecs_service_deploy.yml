@@ -1,0 +1,128 @@
+name: Deploy AWS ECS service
+
+on:
+  workflow_call:
+
+    inputs:
+      AWS_REGION:
+        required: true
+        type: string
+      AWS_ROLE_TO_ASSUME:
+        required: false
+        type: string
+      ECS_CLUSTER_NAME:
+        required: true
+        type: string
+      ECS_SERVICE_NAME:
+        required: true
+        type: string
+      ECS_TASK_DEFINITION:
+        required: true
+        type: string
+      ECS_SERVICE_CONTAINERS_JSON:
+        required: true
+        type: string
+
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+
+jobs:
+
+  get_task_definition:
+    name: ECS Service deploy
+    runs-on: ubuntu-latest
+    outputs:
+      task-def-path: ${{ steps.set-task-def-path.outputs.task-def-path }}
+
+    steps:
+
+      # - name: Configure AWS credentials
+      #   run: echo "${{ inputs.ECS_SERVICE_CONTAINERS_JSON }}"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ inputs.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ inputs.AWS_ROLE_TO_ASSUME }}
+
+      - name: Download ECS task definition
+        shell: bash
+        run: |
+          mkdir -p tmp
+          aws ecs describe-task-definition \
+            --task-definition ${{ inputs.ECS_TASK_DEFINITION }} \
+            --region ${{ inputs.AWS_REGION }} --query 'taskDefinition' > tmp/task-definition.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: task-definition
+          path: tmp/task-definition.json
+
+#      - name: Set output for task definition file
+#        id: set-task-def-path
+#        run: echo "task-def-path=tmp/task-definition.json" >> $GITHUB_OUTPUT
+
+  update_task_definition:
+    name: Update ECS task definition
+    needs: get_task_definition
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        container: ${{ fromJson(inputs.ECS_SERVICE_CONTAINERS_JSON) }}
+      max-parallel: 1
+
+    steps:
+
+      - name: Print container info
+        run: |
+          echo "Container name: ${{ matrix.container.name }}"
+          echo "Container image: ${{ matrix.container.image }}"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: task-definition
+          path: tmp/
+
+      - name: show definition
+        run: ls -la tmp/
+
+      - name: Render ECS task definition with new image
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: tmp/task-definition.json
+          container-name: ${{ matrix.container.name }}
+          image: ${{ matrix.container.image }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: task-definition
+          path: tmp/task-definition.json
+
+  deploy_service:
+    name: Deploy ECS service
+    needs: update_task_definition
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: task-definition
+          path: tmp/
+
+      - name: show definition
+        run: cat tmp/task-definition.json
+
+      - name: Deploy ECS service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: tmp/task-definition.json
+          service: ${{ inputs.ECS_SERVICE_NAME }}
+          cluster: ${{ inputs.ECS_CLUSTER_NAME }}
+          wait-for-service-stability: true
