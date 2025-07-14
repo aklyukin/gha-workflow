@@ -58,9 +58,14 @@ jobs:
             --task-definition ${{ inputs.ECS_TASK_DEFINITION }} \
             --region ${{ inputs.AWS_REGION }} --query 'taskDefinition' > tmp/task-definition.json
 
-      - name: Set output for task definition file
-        id: set-task-def-path
-        run: echo "task-def-path=tmp/task-definition.json" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: task-definition
+          path: tmp/task-definition.json
+
+#      - name: Set output for task definition file
+#        id: set-task-def-path
+#        run: echo "task-def-path=tmp/task-definition.json" >> $GITHUB_OUTPUT
 
   update_task_definition:
     name: Update ECS task definition
@@ -78,6 +83,11 @@ jobs:
           echo "Container name: ${{ matrix.container.name }}"
           echo "Container image: ${{ matrix.container.image }}"
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: task-definition
+          path: tmp/task-definition.json
+
       - name: Render ECS task definition with new image
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -86,6 +96,11 @@ jobs:
           container-name: ${{ matrix.container.name }}
           image: ${{ matrix.container.image }}
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: task-definition
+          path: tmp/task-definition.json
+
   deploy_service:
     name: Deploy ECS service
     needs: update_task_definition
@@ -93,10 +108,15 @@ jobs:
 
     steps:
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: task-definition
+          path: tmp/task-definition.json
+
       - name: Deploy ECS service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
-          task-definition: ${{ needs.update_task_definition.outputs.task-def-path }}
+          task-definition: tmp/task-definition.json
           service: ${{ inputs.ECS_SERVICE_NAME }}
           cluster: ${{ inputs.ECS_CLUSTER_NAME }}
           wait-for-service-stability: true
