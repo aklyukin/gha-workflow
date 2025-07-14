@@ -30,14 +30,73 @@ on:
         required: true
 
 jobs:
-  ecs_deploy:
+
+  get_task_definition:
     name: ECS Service deploy
+    runs-on: ubuntu-latest
+    outputs:
+      task-def-path: ${{ steps.set-task-def-path.outputs.task-def-path }}
+
+    steps:
+
+      # - name: Configure AWS credentials
+      #   run: echo "${{ inputs.ECS_SERVICE_CONTAINERS_JSON }}"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ inputs.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ inputs.AWS_ROLE_TO_ASSUME }}
+
+      - name: Download ECS task definition
+        shell: bash
+        run: |
+          mkdir -p tmp
+          aws ecs describe-task-definition \
+            --task-definition ${{ inputs.ECS_TASK_DEFINITION }} \
+            --region ${{ inputs.AWS_REGION }} --query 'taskDefinition' > tmp/task-definition.json
+
+      - name: Set output for task definition file
+        id: set-task-def-path
+        run: echo "task-def-path=tmp/task-definition.json" >> $GITHUB_OUTPUT
+
+  update_task_definition:
+    name: Update ECS task definition
+    needs: get_task_definition
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        container: ${{ fromJson(inputs.ECS_SERVICE_CONTAINERS_JSON) }}
+      max-parallel: 1
+
+    steps:
+
+      - name: Print container info
+        run: |
+          echo "Container name: ${{ matrix.container.name }}"
+          echo "Container image: ${{ matrix.container.image }}"
+
+      - name: Render ECS task definition with new image
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ needs.get_task_definition.outputs.task-def-path }}
+          container-name: ${{ matrix.container.name }}
+          image: ${{ matrix.container.image }}
+
+  deploy_service:
+    name: Deploy ECS service
+    needs: update_task_definition
     runs-on: ubuntu-latest
 
     steps:
 
-      - name: Configure AWS credentials
-        run: echo "${{ inputs.ECS_SERVICE_CONTAINERS_JSON }}"
-
-
-#"https://stackoverflow.com/questions/59180385/using-an-array-of-values-to-repeat-a-step-in-github-actions-workflow"
+      - name: Deploy ECS service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ needs.update_task_definition.outputs.task-def-path }}
+          service: ${{ inputs.ECS_SERVICE_NAME }}
+          cluster: ${{ inputs.ECS_CLUSTER_NAME }}
+          wait-for-service-stability: true
