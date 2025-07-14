@@ -88,6 +88,9 @@ jobs:
           name: task-definition
           path: tmp/task-definition.json
 
+      - name: show definition
+        run: cat tmp/task-definition.json
+
       - name: Render ECS task definition with new image
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
